@@ -3,6 +3,7 @@
 .code
 org 100h
 
+
 SCR_WDTH equ 80d		;width of the screen
 COLOR = 4eh			;background of rectangle
 INTERVAL equ 2*SCR_WDTH	;constant interval between string of rectangle
@@ -11,14 +12,39 @@ VIDEO_PAGE_0 equ 0b800h			;address of zero video page
 VIDEO_PAGE_1 equ 0b900h			;address of first video page
 VIDEO_PAGE_2 equ 0bA00h			;address of second video page
 
+.INT_W_H MACRO
+
+	mov ax, 32				;put width of the rectangle at AX
+	mov bx, 8				;put height of the rectangle at BX
+	push bx
+	mov dx, INTERVAL
+	mov bx, ax
+	shl bx, 1
+	sub dx, bx
+	pop bx
+
+	ENDM
+
+.VIDE_PAGES MACRO V1, V2
+
+	mov si, V2
+	mov es, si
+	mov si, V1
+	mov ds, si
+	mov si, INDENT
+	sub si, ax				
+	add si, 2
+	mov di, si
+
+	ENDM
+
 start:	jmp init
 
 New08	proc
 
 	push di es ax bx si cx dx ds
 
-	mov ax, 32				;put width of the rectangle at AX
-	mov bx, 8				;put height of the rectangle at BX
+	.INT_W_H
 
 	cld
 
@@ -31,58 +57,43 @@ New08	proc
 
 rec_act:	
 
-	pusha
-	push ds es
+	push ds
 
-	mov si, VIDEO_PAGE_2
-	mov es, si
-	mov si, VIDEO_PAGE_0
-	mov ds, si
-	mov si, INDENT
-	sub si, ax				
-	add si, 2
-	mov di, si
-
-	push bx
-	mov dx, INTERVAL
-	mov bx, ax
-	shl bx, 1
-	sub dx, bx
-	pop bx
+	.VIDE_PAGES VIDEO_PAGE_0, VIDEO_PAGE_2
 
 	mov cx, bx
-
 	mov si, di
 
 store_cmp:	push cx
 
 	mov cx, ax
-s_cmp:	mov bp, ds:[si]
-	cmp bp, es:[di]
-	jne cm2
-	add si, 2
-	add di, 2
-	loop s_cmp
-	jmp cm1
+
+s_cmp:	
+
+	repe cmpsw
+
+	je cm1
 
 cm2:	push es
+	inc cx
+	sub di, 2
+	sub si, 2
 	mov si, VIDEO_PAGE_1
 	mov es, si
 	mov si, di
-	mov bp, ds:[si]
-	mov es:[di], bp
-	add si, 2
-	add di, 2
+
+	movsw
+
 	pop es
 	loop s_cmp
 
-cm1:	add si, dx
-	mov di, si
+cm1:	
+	add si, dx
+	add di, dx
 	pop cx
 	loop store_cmp
 	
-	pop es ds
-	popa
+	pop ds
 	
 
 	mov di,VIDEO_PAGE_0		 
@@ -93,7 +104,7 @@ cm1:	add si, dx
 	
 	call PrintRec
 
-	mov di, INDENT + 2*INTERVAL + 1
+	mov di, INDENT + 2*INTERVAL
 	shr ax, 1
 	sub di, ax
 
@@ -101,59 +112,29 @@ cm1:	add si, dx
 	mov cx, StrLen
 	call SetPosTxt
 	add di, ax
-	dec di
 	call DrawReg
 	sub di, ax
-	inc di
 	add di, INTERVAL
 
-	mov si, offset RegBX
+IRP R,<BX, CX, DX>
+
+	mov si, offset Reg&R
 	call SetPosTxt
 	add di, ax
-	dec di
 	push ax
-	mov ax, bx
+	mov ax, R
 	call DrawReg
 	pop ax
 	sub di, ax
-	inc di
 	add di, INTERVAL
 
-	mov si, offset RegCX
-	call SetPosTxt
-	add di, ax
-	dec di
-	push ax
-	mov ax, cx
-	call DrawReg
-	pop ax
-	sub di, ax
-	inc di
-	add di, INTERVAL
-
-	mov si, offset RegDX
-	call SetPosTxt
-	add di, ax
-	dec di
-	push ax
-	mov ax, dx
-	call DrawReg
-	pop ax
-	sub di, ax
-	inc di
+ENDM
 
 	push cs
 	pop ds
 
 	mov ax, 32
-	mov si, VIDEO_PAGE_2
-	mov es, si
-	mov si, VIDEO_PAGE_0
-	mov ds, si
-	mov si, INDENT
-	sub si, ax		
-	add si, 2
-	mov di, si
+	.VIDE_PAGES VIDEO_PAGE_0, VIDEO_PAGE_2
 
 	call Put_scr
 
@@ -174,9 +155,7 @@ New09	proc
 	in al,60h
 	mov cl, al
 
-
-	mov ax, 32
-	mov bx, 8
+	.INT_W_H
 
 	push cs
 	pop ds
@@ -188,14 +167,7 @@ New09	proc
 	jne noact
 	
 
-	mov si, VIDEO_PAGE_1
-	mov es, si
-	mov si, VIDEO_PAGE_0
-	mov ds, si
-	mov si, INDENT
-	sub si, ax				
-	add si, 2
-	mov di, si
+	.VIDE_PAGES VIDEO_PAGE_0, VIDEO_PAGE_1
 
 	call Put_scr
 
@@ -210,14 +182,7 @@ noact:
 	jne ex
 	mov button, 0
 
-	mov si, VIDEO_PAGE_0
-	mov es, si
-	mov si, VIDEO_PAGE_1
-	mov ds, si
-	mov si, INDENT
-	sub si, ax				
-	add si, 2
-	mov di, si
+	.VIDE_PAGES VIDEO_PAGE_1, VIDEO_PAGE_0
 
 	call Put_scr
 	
@@ -242,13 +207,6 @@ Set_inter	proc
 Put_scr	proc
 
 	push dx ax bx cx es ds si di
-
-	push bx
-	mov dx, INTERVAL
-	mov bx, ax
-	shl bx, 1
-	sub dx, bx
-	pop bx
 
 	mov cx, bx
 
@@ -276,14 +234,6 @@ PrintRec	proc
 
 	sub ax, 2
 	sub bx, 2
-
-	push bx
-	mov dx, INTERVAL
-	mov bx, ax
-	shl bx, 1
-	sub dx, bx
-	sub dx, 4
-	pop bx
 
 	mov si, offset CharsArrayUp	
 	mov cx, ax
@@ -357,10 +307,11 @@ rep_draw_l:	push cx
 SetPosTxt	proc
 		
 	push di
-
-	shr cx, 1
-	sub di, cx
+	push cx
+	shr cx, 2
 	shl cx, 1
+	sub di, cx
+	pop cx
 	call DrawText
 
 	pop di
