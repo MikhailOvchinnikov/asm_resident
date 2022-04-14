@@ -5,22 +5,49 @@ SECTION .text
 
 		push rcx	
 		push rbx
+		push rdi
 		cmp al, 'd'
-		jne %%not_digit
-		mov [sym], %1
-		mov rcx, sym
+		jne %%not_int
+		mov rax, %1
+		xor rdx, rdx
+		call PutToMemory
 		mov rdx, symLen
+		mov rcx, sym
 		jmp %%interrupt_params
+%%not_int:	
+		cmp al, 'x'
+		jne %%not_digit
+		mov rax, %1
+		mov rbx, str_x
+		mov rdi, sym
+		call XlatFunc
+		mov rdx, symLen
+		mov rcx, sym
+		jmp %%interrupt_params
+
 %%not_digit:	
+
+		cmp al, 'c'
+		jne %%long_str
+		mov [sym], %1
+		mov rdx, 1
+		mov rcx, sym
+		jmp %%interrupt_params
+
+%%long_str:
 		cmp al, 's'
 		jne cmp_symbol
 		mov rcx, %1
-		mov edx, strLen
+		mov rbx, %1
+		call StrLen
+		mov [lenSmth], rax
+		mov rdx, [lenSmth]
 %%interrupt_params:
 		mov rax, 4
 		mov rbx, 1
 
 		int 80h	
+		pop rdi
 		pop rbx
 		pop rcx
 		jmp cmp_symbol		
@@ -31,13 +58,15 @@ SECTION .text
 global _start
 
 _start:		
-
-		mov rsi, 56
-		mov rdi, str_param
-		;push str_param2 
-		;push 51
+		mov r8, format
+		mov rsi, 859
+		mov rdi, strParam
+		push 450
+		mov rax, strParam
+		push rax
+		push 60
 		call SuperPrintf
-
+		
 		mov rax, 1
 		mov rbx, 0
 		
@@ -51,11 +80,11 @@ SuperPrintf:
 		xor rbx, rbx
 		xor rcx, rcx
 cmp_symbol:	
-		mov al, [format+rcx] 
+		mov al, [r8+rcx] 
 		inc rcx
 
 
-		cmp al, '0'
+		cmp al, '$'
 		je end_of_parse
 		cmp al, '%'
 		jne cmp_format
@@ -64,6 +93,16 @@ cmp_symbol:
 cmp_format:
 		cmp [format_sym_ind], byte  1
 		je int_sym
+		push rcx
+		push rbx
+		mov [sym+7], al
+		mov rax, 4
+		mov rbx, 1
+		mov rcx, sym+7
+		mov rdx, 1
+		int 80h	
+		pop rbx
+		pop rcx
 		jmp cmp_symbol
 
 int_sym:
@@ -82,33 +121,82 @@ second_param:
 
 
 other_params:
-		push rcx
-		push rbx
-		mov rax, [rbp + (rbx - 2)*8] 	
-		mov [sym], rax
-		mov eax, 4
-		mov ebx, 1
-		mov ecx, sym
-		mov edx, 8
-
-		int 80h	
-		pop rbx
-		pop rcx
-		jmp cmp_symbol		
-
+		mov rdx, [rbp + (rbx - 2)*8] 	
+		_print_elem rdx
 
 end_of_parse:
+		pop rax
+		shr rbx, 3
+		sub rsp, rbx
+		jmp rax
 
+
+StrLen:
+		push rcx
+		push rdx
+		xor rcx, rcx
+cmp_sym:
+		mov dl, [rbx+rcx]
+		inc rcx
+		cmp dl, '$'
+		jne cmp_sym
+		dec rcx
+		mov rax, rcx
+
+		pop rdx
+		pop rcx
 		ret
 
+PutToMemory:	
+		push rcx
+		push rsi
+		push rdi
+		push rdx
+		mov ecx, 7
+		mov esi, 10
+div_digit:
+		div esi
+		add dl, '0'
+		mov edi, sym
+		mov [edi+ecx], dl
+		xor rdx, rdx
+		cmp rax, 0
+		je end_putmem
+		loop div_digit
+end_putmem:
+		pop rdx
+		pop rdi
+		pop rsi
+		pop rcx
+		ret
+
+XlatFunc:	
+		push rcx
+		push rsi
+		mov esi, 10h
+		mov rcx, 7
+next_sym:
+		xor rdx, rdx
+		div esi
+		push rax
+		mov rax, rdx
+		xlat
+		mov [rdi+rcx], al
+		pop rax
+		cmp rax, 0
+		je end_xlat
+		loop next_sym
+end_xlat:
+		pop rsi
+		pop rcx 	
+		ret
 
 SECTION .data
 
-str_param:	db "something",'\0'
-strLen:		equ $ - str_param
+strParam:	db "something",'$'
+lenSmth:	dq 0
 format_sym_ind:	db 0
 sym:		dq 0
-symLen: 	equ $ - sym
-format:		db "%d%s%0",10
-formatLen:	equ $ - format
-
+symLen: 	equ $ - sym 
+format:		db "%x%s Mikhail%c%s%d$",10
+str_x:		db "0123456789ABCDEF$"
