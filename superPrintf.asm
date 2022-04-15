@@ -1,28 +1,53 @@
 SECTION .text
 
 
+
+%macro _val_to_mem 2
+
+		mov rax, %1
+		mov rbx, str_o
+		mov rdi, sym
+		mov esi, %2
+		call Xlat
+		mov rdx, SYM_LEN
+		sub rdx, rcx
+		inc rdx
+		add rcx, sym
+		dec rcx
+%endmacro
+
+
 %macro	_print_elem 1	
 
 		push rcx	
 		push rbx
 		push rdi
 		cmp al, 'd'
-		jne %%not_int
+		jne %%x_format
 		mov rax, %1
 		xor rdx, rdx
 		call PutToMemory
-		mov rdx, symLen
-		mov rcx, sym
+		mov rdx, SYM_LEN
+		sub rdx, rcx
+		add rcx, sym
 		jmp %%interrupt_params
-%%not_int:	
+
+%%x_format:	
 		cmp al, 'x'
+		jne %%o_format
+		_val_to_mem %1, 10h	
+		jmp %%interrupt_params
+
+%%o_format:	
+		cmp al, 'o'
+		jne %%b_format
+		_val_to_mem %1, 8h		
+		jmp %%interrupt_params
+
+%%b_format:	
+		cmp al, 'b'
 		jne %%not_digit
-		mov rax, %1
-		mov rbx, str_x
-		mov rdi, sym
-		call XlatFunc
-		mov rdx, symLen
-		mov rcx, sym
+		_val_to_mem %1, 2h		
 		jmp %%interrupt_params
 
 %%not_digit:	
@@ -42,6 +67,7 @@ SECTION .text
 		call StrLen
 		mov [lenSmth], rax
 		mov rdx, [lenSmth]
+
 %%interrupt_params:
 		mov rax, 4
 		mov rbx, 1
@@ -59,7 +85,7 @@ global _start
 
 _start:		
 		mov r8, format
-		mov rsi, 859
+		mov rsi, 685568979
 		mov rdi, strParam
 		push 450
 		mov rax, strParam
@@ -82,30 +108,36 @@ SuperPrintf:
 cmp_symbol:	
 		mov al, [r8+rcx] 
 		inc rcx
-
+		
 
 		cmp al, '$'
 		je end_of_parse
 		cmp al, '%'
 		jne cmp_format
+		cmp [format_sym_ind], byte 1
+		je simple_sym
 		mov [format_sym_ind], byte 1
 		jmp cmp_symbol
 cmp_format:
 		cmp [format_sym_ind], byte  1
-		je int_sym
+		je format_sym
+simple_sym:
+		mov [format_sym_ind], byte 0
+
 		push rcx
 		push rbx
-		mov [sym+7], al
+		mov [sym+OFFSET_SYM], al
 		mov rax, 4
 		mov rbx, 1
-		mov rcx, sym+7
+		mov rcx, sym+OFFSET_SYM
 		mov rdx, 1
 		int 80h	
+
 		pop rbx
 		pop rcx
 		jmp cmp_symbol
 
-int_sym:
+format_sym:
 		mov [format_sym_ind], byte 0
 		inc rbx
 		cmp rbx, 1
@@ -148,11 +180,10 @@ cmp_sym:
 		ret
 
 PutToMemory:	
-		push rcx
 		push rsi
 		push rdi
 		push rdx
-		mov ecx, 7
+		mov ecx, OFFSET_SYM
 		mov esi, 10
 div_digit:
 		div esi
@@ -167,29 +198,24 @@ end_putmem:
 		pop rdx
 		pop rdi
 		pop rsi
-		pop rcx
 		ret
 
-XlatFunc:	
-		push rcx
-		push rsi
-		mov esi, 10h
-		mov rcx, 7
+Xlat:	
+		mov rcx, 8
 next_sym:
 		xor rdx, rdx
 		div esi
 		push rax
 		mov rax, rdx
 		xlat
-		mov [rdi+rcx], al
+		mov [rdi+rcx-1], al
 		pop rax
 		cmp rax, 0
 		je end_xlat
 		loop next_sym
 end_xlat:
-		pop rsi
-		pop rcx 	
 		ret
+			
 
 SECTION .data
 
@@ -197,6 +223,8 @@ strParam:	db "something",'$'
 lenSmth:	dq 0
 format_sym_ind:	db 0
 sym:		dq 0
-symLen: 	equ $ - sym 
-format:		db "%x%s Mikhail%c%s%d$",10
+SYM_LEN	 	equ $ - sym 
+OFFSET_SYM	equ 7
+format:		db "%%%b%s Mi%%%%khail%c%s%d$",10
 str_x:		db "0123456789ABCDEF$"
+str_o:		db "01234567$"
