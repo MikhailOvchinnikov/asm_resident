@@ -8,7 +8,9 @@ SECTION .text
 		mov rbx, str_x
 		mov rdi, sym
 		mov esi, %2
+
 		call Xlat
+
 		mov rdx, SYM_LEN
 		sub rdx, rcx
 		inc rdx
@@ -18,11 +20,11 @@ SECTION .text
 %endmacro
 
 
-%macro	_print_elem 1	
-
-		push rcx	
+%macro	_print_elem 1
+		push rdx	
+		push rcx
+		push rsi
 		push rbx
-		push rdi
 		cmp al, 'd'
 		jne %%x_format
 		_val_to_mem %1, 10	
@@ -58,9 +60,16 @@ SECTION .text
 %%long_str:
 		cmp al, 's'
 		jne cmp_symbol
-		mov rsi, %1
+		mov r15, %1
+		mov rsi, r15
 		mov rbx, %1
+		
+		push rcx
+		push rdx
 		call StrLen
+		pop rdx
+		pop rcx
+
 		mov [lenSmth], rax
 		mov rdx, [lenSmth]
 
@@ -68,11 +77,14 @@ SECTION .text
 		mov rax, 1
 		mov rdi, 1
 		push r11
+
 		syscall
+
 		pop r11
-		pop rdi
 		pop rbx
+		pop rsi
 		pop rcx
+		pop rdx
 		jmp cmp_symbol		
 
 %endmacro	
@@ -81,17 +93,18 @@ SECTION .text
 global _start
 
 _start:		
-		mov r8, format
-		mov r9, 685
-		mov r10, strParam
-		mov r12, 685
-		mov r13, strParam
-		mov r14, 685
-		mov r15, strParam
+		mov r10, format
+		mov rdi, 685
+		mov rsi, strParam
+		mov rdx, 685
+		mov rcx, strParam
+		mov r8, 685
+		mov r9, strParam
 		push 450
 		mov rax, strParam
 		push rax
 		push 60
+
 		call SuperPrintf
 		
 		mov rax, 1
@@ -106,11 +119,11 @@ SuperPrintf:
 		mov rbp, rsp
 		push rbp
 		xor rbx, rbx
-		xor rcx, rcx
+		xor r12, r12
 		xor r11, r11
 cmp_symbol:	
-		mov al, [r8+rcx] 
-		inc rcx
+		mov al, [r10+r12] 
+		inc r12
 		
 
 		cmp al, '$'
@@ -132,33 +145,60 @@ simple_sym:
 		cmp r11, 49
 		jne cmp_symbol
 	
+		push rbx
+		push rax
+		push rdi
+		push rsi
+		push rdx
+		push rcx
 		call Write_buffer
+		pop rcx
+		pop rdx
+		pop rsi
+		pop rdi
+		pop rax
+		pop rbx
+
 		jmp cmp_symbol		
 
 format_sym:
 		mov [format_sym_ind], byte 0
+
+		push rbx
+		push rax
+		push rdi
+		push rsi
+		push rdx
+		push rcx
 		call Write_buffer
+		pop rcx
+		pop rdx
+		pop rsi
+		pop rdi
+		pop rax
+		pop rbx
+
 		cmp rbx, 6
 		jae other_params
-		mov rdx, REG_NUM
+		mov r15, REG_NUM
 		shl rbx, 3
-		add rdx, rbx
+		add r15, rbx
 		shr rbx, 3
 		inc rbx
-		jmp [rdx]
+		jmp [r15]
 
 first_param:
-		_print_elem r9
+		_print_elem rdi
 second_param:
-		_print_elem r10
+		_print_elem rsi
 third_param:
-		_print_elem r12
+		_print_elem rdx
 fourth_param:
-		_print_elem r13
+		_print_elem rcx
 fifth_param:
-		_print_elem r14
+		_print_elem r8
 sixth_param:
-		_print_elem r15
+		_print_elem r9
 other_params:
 		inc rbx
 		mov rdx, [rbp + (rbx - 6)*8] 	
@@ -174,25 +214,17 @@ end_of_parse:
 
 
 Write_buffer:	
-		push rcx
-		push rbx
-		push rax
 		mov rax, 1
 		mov rdi, 1
 		mov rsi, temp_buffer
 		mov rdx, r11
 		syscall
 		xor r11, r11
-		pop rax
-		pop rbx
-		pop rcx
 
 		ret
 
 
 StrLen:
-		push rcx
-		push rdx
 		xor rcx, rcx
 cmp_sym:
 		mov dl, [rbx+rcx]
@@ -202,30 +234,8 @@ cmp_sym:
 		dec rcx
 		mov rax, rcx
 
-		pop rdx
-		pop rcx
 		ret
 
-PutToMemory:	
-		push rsi
-		push rdi
-		push rdx
-		mov ecx, OFFSET_SYM
-		mov esi, 10
-div_digit:
-		div esi
-		add dl, '0'
-		mov edi, sym
-		mov [edi+ecx], dl
-		xor rdx, rdx
-		cmp rax, 0
-		je end_putmem
-		loop div_digit
-end_putmem:
-		pop rdx
-		pop rdi
-		pop rsi
-		ret
 
 Xlat:	
 		mov rcx, 8
