@@ -24,6 +24,7 @@ SECTION .text
 		push rdx	
 		push rcx
 		push rsi
+		push rdi
 		push rbx
 		cmp al, 'd'
 		jne %%x_format
@@ -82,6 +83,7 @@ SECTION .text
 
 		pop r11
 		pop rbx
+		pop rdi
 		pop rsi
 		pop rcx
 		pop rdx
@@ -93,13 +95,12 @@ SECTION .text
 global _start
 
 _start:		
-		mov r10, format
-		mov rdi, 685
-		mov rsi, strParam
-		mov rdx, 685
-		mov rcx, strParam
-		mov r8, 685
-		mov r9, strParam
+		mov rdi, format
+		mov rsi, 685
+		mov rdx, strParam
+		mov rcx, 685
+		mov r8, strParam
+		mov r9, 685
 		push 450
 		mov rax, strParam
 		push rax
@@ -122,7 +123,7 @@ SuperPrintf:
 		xor r12, r12
 		xor r11, r11
 cmp_symbol:	
-		mov al, [r10+r12] 
+		mov al, [rdi+r12] 
 		inc r12
 		
 
@@ -178,7 +179,7 @@ format_sym:
 		pop rax
 		pop rbx
 
-		cmp rbx, 6
+		cmp rbx, 5
 		jae other_params
 		mov r15, REG_NUM
 		shl rbx, 3
@@ -188,20 +189,19 @@ format_sym:
 		jmp [r15]
 
 first_param:
-		_print_elem rdi
-second_param:
 		_print_elem rsi
-third_param:
+second_param:
 		_print_elem rdx
-fourth_param:
+third_param:
 		_print_elem rcx
-fifth_param:
+fourth_param:
 		_print_elem r8
-sixth_param:
+fifth_param:
 		_print_elem r9
+
 other_params:
 		inc rbx
-		mov rdx, [rbp + (rbx - 6)*8] 	
+		mov rdx, [rbp + (rbx - 5)*8] 	
 		_print_elem rdx
 
 end_of_parse:
@@ -262,7 +262,7 @@ format_sym_ind:	db 0
 sym:		dq 0
 SYM_LEN	 	equ $ - sym 
 OFFSET_SYM	equ 7
-format:		db "%%%b%s%o%s%x%s Mi%%%%khail%c%s%dEnd of the string$"
+format:		db "%%%b%s%o%s%x Mi%%%%khail%c%s%dEnd of the string$"
 str_x:		db "0123456789ABCDEF$"
 temp_buffer:	times 50 db 0
 REG_NUM:	dq first_param
@@ -270,4 +270,3 @@ REG_NUM:	dq first_param
 		dq third_param
 		dq fourth_param
 		dq fifth_param
-		dq sixth_param
