@@ -67,8 +67,9 @@ SECTION .text
 %%interrupt_params:
 		mov rax, 1
 		mov rdi, 1
-
+		push r11
 		syscall
+		pop r11
 		pop rdi
 		pop rbx
 		pop rcx
@@ -106,6 +107,7 @@ SuperPrintf:
 		push rbp
 		xor rbx, rbx
 		xor rcx, rcx
+		xor r11, r11
 cmp_symbol:	
 		mov al, [r8+rcx] 
 		inc rcx
@@ -124,36 +126,26 @@ cmp_format:
 		je format_sym
 simple_sym:
 		mov [format_sym_ind], byte 0
-
-		push rcx
-		push rbx
-		mov [sym+OFFSET_SYM], al
-		mov rax, 1
-		mov rdi, 1
-		mov rsi, sym+OFFSET_SYM
-		mov rdx, 1
-		syscall
-
-		pop rbx
-		pop rcx
-		jmp cmp_symbol
+		
+		mov [temp_buffer + r11], al
+		inc r11
+		cmp r11, 49
+		jne cmp_symbol
+	
+		call Write_buffer
+		jmp cmp_symbol		
 
 format_sym:
 		mov [format_sym_ind], byte 0
-		inc rbx
-		cmp rbx, 1
-		je first_param
-		cmp rbx, 2
-		je second_param
-		cmp rbx, 3
-		je third_param
-		cmp rbx, 4
-		je fourth_param
-		cmp rbx, 5
-		je fifth_param
+		call Write_buffer
 		cmp rbx, 6
-		je sixth_param
-		jmp other_params
+		jae other_params
+		mov rdx, REG_NUM
+		shl rbx, 3
+		add rdx, rbx
+		shr rbx, 3
+		inc rbx
+		jmp [rdx]
 
 first_param:
 		_print_elem r9
@@ -167,17 +159,35 @@ fifth_param:
 		_print_elem r14
 sixth_param:
 		_print_elem r15
-
 other_params:
+		inc rbx
 		mov rdx, [rbp + (rbx - 6)*8] 	
 		_print_elem rdx
 
 end_of_parse:
+		call Write_buffer
 		pop rbp
 		pop rax
 		shr rbx, 3
 		sub rsp, rbx
 		jmp rax
+
+
+Write_buffer:	
+		push rcx
+		push rbx
+		push rax
+		mov rax, 1
+		mov rdi, 1
+		mov rsi, temp_buffer
+		mov rdx, r11
+		syscall
+		xor r11, r11
+		pop rax
+		pop rbx
+		pop rcx
+
+		ret
 
 
 StrLen:
@@ -242,6 +252,12 @@ format_sym_ind:	db 0
 sym:		dq 0
 SYM_LEN	 	equ $ - sym 
 OFFSET_SYM	equ 7
-format:		db "%%%d%s%d%s%d%s Mi%%%%khail%c%s%d$",10
+format:		db "%%%b%s%o%s%x%s Mi%%%%khail%c%s%dEnd of the string$"
 str_x:		db "0123456789ABCDEF$"
 temp_buffer:	times 50 db 0
+REG_NUM:	dq first_param
+		dq second_param
+		dq third_param
+		dq fourth_param
+		dq fifth_param
+		dq sixth_param
